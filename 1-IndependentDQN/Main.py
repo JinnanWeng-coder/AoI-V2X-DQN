@@ -144,6 +144,7 @@ rec_r1 = np.zeros([n_platoon, n_episode], dtype=np.float16)
 rec_r2 = np.zeros([n_platoon, n_episode], dtype=np.float16)
 viol_total = np.zeros([n_platoon, n_episode], dtype=np.float32)     # P(AoI_j > tau) per platoon per episode
 eps_total = np.zeros([n_episode], dtype=np.float32)
+mode_v2i_total = np.zeros([n_platoon, n_episode], dtype=np.float32) # per-platoon per-episode V2I(inter) mode fraction
 
 total_steps = n_episode * n_step_per_episode
 decay_steps = max(1, int(total_steps * args.eps_decay_frac))
@@ -171,6 +172,7 @@ for i_episode in range(n_episode):
     rec_AoI_step = np.zeros([n_platoon, n_step_per_episode], dtype=np.float16)
     rec_r1_step = np.zeros([n_platoon, n_step_per_episode], dtype=np.float16)
     rec_r2_step = np.zeros([n_platoon, n_step_per_episode], dtype=np.float16)
+    rec_mode_step = np.zeros([n_platoon, n_step_per_episode], dtype=np.float16)   # mode chosen (0=V2I/inter, 1=V2V/intra)
 
     for i_step in range(n_step_per_episode):
         eps = epsilon_at(global_step)
@@ -183,6 +185,7 @@ for i_episode in range(n_episode):
             at[i, 0] = rb
             at[i, 1] = mode
             at[i, 2] = power
+            rec_mode_step[i, i_step] = mode
 
         r1, r2, global_reward, platoon_AoI, C_rate, V_rate, Demand_R, V2V_success = env.act_for_training(at.copy())
         env.renew_channels_fastfading()
@@ -218,10 +221,11 @@ for i_episode in range(n_episode):
     AoI_total[:, i_episode] = rec_AoI_step.mean(axis=1)
     viol_total[:, i_episode] = (rec_AoI_step > args.tau).mean(axis=1)
     eps_total[i_episode] = eps
-    print('[dqn ep %d] eps=%.3f worst_viol=%.3f net_viol=%.3f meanAoI=%.2f power=%.1f v2v_succ=%.2f'
+    mode_v2i_total[:, i_episode] = 1.0 - rec_mode_step.mean(axis=1)   # fraction of steps in V2I(inter) mode
+    print('[dqn ep %d] eps=%.3f worst_viol=%.3f net_viol=%.3f meanAoI=%.2f power=%.1f v2v_succ=%.2f v2i_mode=%.2f'
           % (i_episode, eps, float(viol_total[:, i_episode].max()), float(viol_total[:, i_episode].mean()),
              float(AoI_total[:, i_episode].mean()), float(power_total[:, i_episode % n_episode_test, :].mean()),
-             float(V2V_success)))
+             float(V2V_success), float(mode_v2i_total[:, i_episode].mean())))
     if i_episode % 50 == 0:
         for ag in agents:
             ag.save_models()
@@ -239,6 +243,7 @@ scipy.io.savemat(os.path.join(outdir, 'V2I.mat'), {'V2I': V2I_total})
 scipy.io.savemat(os.path.join(outdir, 'V2V.mat'), {'V2V': V2V_total})
 scipy.io.savemat(os.path.join(outdir, 'power.mat'), {'power': power_total})
 scipy.io.savemat(os.path.join(outdir, 'epsilon.mat'), {'epsilon': eps_total})
+scipy.io.savemat(os.path.join(outdir, 'mode_v2i.mat'), {'mode_v2i': mode_v2i_total})
 for ag in agents:
     ag.save_models()
 print('done. label=%s  time=%.1fs' % (label, time.time() - start))

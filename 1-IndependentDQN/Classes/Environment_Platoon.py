@@ -1,7 +1,8 @@
 import numpy as np
 import math
 
-np.random.seed(1376)
+# [DQN-baseline] removed Parvini's import-time np.random.seed(1376); the RNG is now
+# seeded per-run in Main.py via --seed so paired seeds reproduce across arms.
 
 
 class V2Vchannels:

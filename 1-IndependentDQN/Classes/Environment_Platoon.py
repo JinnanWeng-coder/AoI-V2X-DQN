@@ -113,6 +113,7 @@ class Environ:
         self.vehAntGain = 3
         self.vehNoiseFigure = 9
         self.sig2 = 10 ** (self.sig2_dB / 10)
+        self.aoi_penalty_coef = 1.0 / 20   # [RQ1-CMDP] AoI reward-penalty weight; Main sets 0.0 in hard mode
         self.gap = Gap
         self.v_length = 0
 
@@ -514,12 +515,12 @@ class Environ:
                 per_user_task1_reward[i] = (-4.95)*(Demand[i] / self.V2V_demand_size)
 
                 per_user_task2_reward[i] = (0.05)*self.Revenue_function(C_rate[i], self.V2I_min) \
-                                       - 0.5*math.log(action_temp[i, 2],5) - platoon_AoI[i] / 20
+                                       - 0.5*math.log(action_temp[i, 2],5) - platoon_AoI[i] * self.aoi_penalty_coef
             else:
                 per_user_task1_reward[i] = (-4.95) * (Demand[i] / self.V2V_demand_size) - 0.5 * math.log(
                     action_temp[i, 2], 5)
 
-                per_user_task2_reward[i] = (0.05) * self.Revenue_function(C_rate[i], self.V2I_min) - platoon_AoI[i] / 20
+                per_user_task2_reward[i] = (0.05) * self.Revenue_function(C_rate[i], self.V2I_min) - platoon_AoI[i] * self.aoi_penalty_coef
 
         global_reward = -np.mean((self.Interference_all + 60) / 60)
         return per_user_task1_reward, per_user_task2_reward, global_reward, platoon_AoI, C_rate, \

@@ -49,6 +49,17 @@ parser.add_argument('--eps_decay_frac', type=float, default=0.5,
 parser.add_argument('--out_tag', type=str, default='')
 parser.add_argument('--out_subdir', type=str, default='',
                     help='optional subfolder under model/ for all outputs (e.g. Scan_Cadence)')
+# [RQ1-CMDP] step-5: per-platoon Lagrangian constraint. soft = AoI as -AoI/20 reward penalty
+# (validated baseline); hard = AoI as a per-platoon CMDP constraint P(AoI>tau)<=eps via a cost
+# Q-head + per-platoon lambda_j, greedy = argmax_a [Q1 + Q2 - lambda_j * Q^c].
+parser.add_argument('--mode', choices=['soft', 'hard'], default='soft')
+parser.add_argument('--eps', type=float, default=0.10, help='[RQ1-CMDP] target violation probability epsilon')
+parser.add_argument('--eta_lam', type=float, default=1.0, help='[RQ1-CMDP] integral dual step size')
+parser.add_argument('--lam_max', type=float, default=20.0, help='[RQ1-CMDP] multiplier clip')
+parser.add_argument('--dual', choices=['integral', 'pid'], default='pid', help='[RQ1-CMDP] dual update rule')
+parser.add_argument('--kp', type=float, default=1.0, help='[RQ1-CMDP] PID proportional gain')
+parser.add_argument('--ki', type=float, default=1.0, help='[RQ1-CMDP] PID integral gain')
+parser.add_argument('--kd', type=float, default=0.5, help='[RQ1-CMDP] PID derivative gain')
 parser.add_argument('--smoke', action='store_true', help='tiny end-to-end wiring test (NOT a result)')
 args = parser.parse_args()
 
@@ -97,6 +108,8 @@ def decode_action(idx):
 env = ENV.Environ(down_lanes, up_lanes, left_lanes, right_lanes, width, height,
                   n_veh, size_platoon, n_RB, V2I_min, bandwidth, V2V_size, Gap)
 env.new_random_game()
+# [RQ1-CMDP] AoI handling: soft keeps the -AoI/20 reward penalty; hard turns it OFF (AoI -> constraint).
+env.aoi_penalty_coef = (1.0 / 20) if args.mode == 'soft' else 0.0
 
 n_episode = args.episodes
 n_step_per_episode = int(env.time_slow / env.time_fast)   # = 100 (physics-locked: 100ms CAM frame / 1ms slot).
@@ -123,10 +136,11 @@ def get_state(env, idx):
 
 n_input = len(get_state(env, 0))
 agents = [IndependentDQNAgent(args.lr, n_input, n_actions, args.gamma, args.fc1, args.fc2,
-                              args.batch_size, i, tau=args.target_tau) for i in range(n_platoon)]
+                              args.batch_size, i, tau=args.target_tau, constraint_mode=args.mode)
+          for i in range(n_platoon)]
 memory = ReplayBuffer(args.buffer, n_input, n_platoon)
 
-label = 'dqn_soft_seed' + str(SEED)
+label = 'dqn_' + args.mode + '_seed' + str(SEED)
 if args.out_tag:
     label = label + '_' + args.out_tag
 if args.out_subdir:
@@ -149,6 +163,9 @@ rec_r2 = np.zeros([n_platoon, n_episode], dtype=np.float16)
 viol_total = np.zeros([n_platoon, n_episode], dtype=np.float32)     # P(AoI_j > tau) per platoon per episode
 eps_total = np.zeros([n_episode], dtype=np.float32)
 mode_v2i_total = np.zeros([n_platoon, n_episode], dtype=np.float32) # per-platoon per-episode V2I(inter) mode fraction
+lambda_total = np.zeros([n_platoon, n_episode], dtype=np.float32)   # [RQ1-CMDP] per-platoon multiplier (0 throughout in soft)
+lam_I = np.zeros(n_platoon, dtype=np.float64)                       # [RQ1-CMDP] PID integral accumulator
+lam_err_prev = np.zeros(n_platoon, dtype=np.float64)                # [RQ1-CMDP] PID previous-episode error
 
 total_steps = n_episode * n_step_per_episode
 decay_steps = max(1, int(total_steps * args.eps_decay_frac))
@@ -192,20 +209,21 @@ for i_episode in range(n_episode):
             rec_mode_step[i, i_step] = mode
 
         r1, r2, global_reward, platoon_AoI, C_rate, V_rate, Demand_R, V2V_success = env.act_for_training(at.copy())
+        cost = (np.asarray(platoon_AoI, dtype=np.float64) > args.tau).astype(np.float32)   # [RQ1-CMDP] per-platoon 1{AoI>tau}
         env.renew_channels_fastfading()
         env.Compute_Interference(at.copy())
         state_new = [get_state(env, i) for i in range(n_platoon)]
         done = (i_step == n_step_per_episode - 1)
 
-        memory.store_transition(np.asarray(state_old).flatten(), action_idx, r1, r2,
+        memory.store_transition(np.asarray(state_old).flatten(), action_idx, r1, r2, cost,
                                 np.asarray(state_new).flatten(), done)
 
         if memory.mem_cntr >= args.batch_size:
-            s, a_idx, br1, br2, s_, d = memory.sample_buffer(args.batch_size)
+            s, a_idx, br1, br2, brc, s_, d = memory.sample_buffer(args.batch_size)
             for i in range(n_platoon):
                 si = s[:, i * n_input:(i + 1) * n_input]
                 si_ = s_[:, i * n_input:(i + 1) * n_input]
-                agents[i].learn(si, a_idx[:, i], br1[:, i], br2[:, i], si_, d)
+                agents[i].learn(si, a_idx[:, i], br1[:, i], br2[:, i], brc[:, i], si_, d)
 
         for i in range(n_platoon):
             rec_AoI_step[i, i_step] = env.AoI[i]
@@ -226,10 +244,23 @@ for i_episode in range(n_episode):
     viol_total[:, i_episode] = (rec_AoI_step > args.tau).mean(axis=1)
     eps_total[i_episode] = eps
     mode_v2i_total[:, i_episode] = 1.0 - rec_mode_step.mean(axis=1)   # fraction of steps in V2I(inter) mode
-    print('[dqn ep %d] eps=%.3f worst_viol=%.3f net_viol=%.3f meanAoI=%.2f power=%.1f v2v_succ=%.2f v2i_mode=%.2f'
-          % (i_episode, eps, float(viol_total[:, i_episode].max()), float(viol_total[:, i_episode].mean()),
+    # [RQ1-CMDP] two-timescale dual ascent (slow loop, once per episode): raise lambda_j when
+    # platoon j's episodic violation exceeds eps, lower it otherwise. Soft mode leaves lambda=0.
+    if args.mode == 'hard':
+        e_vec = viol_total[:, i_episode] - args.eps
+        for j in range(n_platoon):
+            e = float(e_vec[j])
+            if args.dual == 'integral':
+                agents[j].lam = float(np.clip(agents[j].lam + args.eta_lam * e, 0.0, args.lam_max))
+            else:  # PID-Lagrangian (Stooke 2020); kp=kd=0, ki=eta_lam reduces to integral
+                lam_I[j] = float(np.clip(lam_I[j] + args.ki * e, 0.0, args.lam_max))
+                agents[j].lam = float(np.clip(args.kp * e + lam_I[j] + args.kd * (e - lam_err_prev[j]), 0.0, args.lam_max))
+                lam_err_prev[j] = e
+    lambda_total[:, i_episode] = np.array([agents[j].lam for j in range(n_platoon)])
+    print('[dqn %s ep %d] eps=%.3f worst_viol=%.3f net_viol=%.3f meanAoI=%.2f power=%.1f v2v_succ=%.2f v2i_mode=%.2f lam=%s'
+          % (args.mode, i_episode, eps, float(viol_total[:, i_episode].max()), float(viol_total[:, i_episode].mean()),
              float(AoI_total[:, i_episode].mean()), float(power_total[:, i_episode % n_episode_test, :].mean()),
-             float(V2V_success), float(mode_v2i_total[:, i_episode].mean())))
+             float(V2V_success), float(mode_v2i_total[:, i_episode].mean()), np.round(lambda_total[:, i_episode], 2)))
     if i_episode % 50 == 0:
         for ag in agents:
             ag.save_models()
@@ -248,6 +279,7 @@ scipy.io.savemat(os.path.join(outdir, 'V2V.mat'), {'V2V': V2V_total})
 scipy.io.savemat(os.path.join(outdir, 'power.mat'), {'power': power_total})
 scipy.io.savemat(os.path.join(outdir, 'epsilon.mat'), {'epsilon': eps_total})
 scipy.io.savemat(os.path.join(outdir, 'mode_v2i.mat'), {'mode_v2i': mode_v2i_total})
+scipy.io.savemat(os.path.join(outdir, 'lambda.mat'), {'lambda': lambda_total})   # [RQ1-CMDP] per-platoon multiplier
 for ag in agents:
     ag.save_models()
 print('done. label=%s  time=%.1fs' % (label, time.time() - start))

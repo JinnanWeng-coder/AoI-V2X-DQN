@@ -47,6 +47,8 @@ parser.add_argument('--eps_end', type=float, default=0.05)
 parser.add_argument('--eps_decay_frac', type=float, default=0.5,
                     help='fraction of total env steps over which epsilon decays linearly to eps_end')
 parser.add_argument('--out_tag', type=str, default='')
+parser.add_argument('--out_subdir', type=str, default='',
+                    help='optional subfolder under model/ for all outputs (e.g. Scan_Cadence)')
 parser.add_argument('--smoke', action='store_true', help='tiny end-to-end wiring test (NOT a result)')
 args = parser.parse_args()
 
@@ -127,6 +129,8 @@ memory = ReplayBuffer(args.buffer, n_input, n_platoon)
 label = 'dqn_soft_seed' + str(SEED)
 if args.out_tag:
     label = label + '_' + args.out_tag
+if args.out_subdir:
+    label = args.out_subdir + '/' + label    # nest all outputs under model/<out_subdir>/
 current_dir = os.path.dirname(os.path.realpath(__file__))
 print('=== Independent-DQN run: seed=%d episodes=%d steps/ep=%d renew_every=%d n_platoon=%d n_RB=%d '
       'n_input=%d n_actions=%d fc=%d/%d label=%s smoke=%s ==='

@@ -1,0 +1,14 @@
+# DQN soft-baseline metrics for dqn_soft_seed2_re5_mem25000  (tau=8, eps=0.10 reference)
+canonical.net_mean                 = 0.16140000000000002
+canonical.worst_platoon            = 0.2756
+canonical.per_platoon              = [0.173, 0.0564, 0.2756, 0.1842, 0.1178]
+viol_rate.net_mean_last100         = 0.16140000006183983
+viol_rate.worst_platoon_last100    = 0.27560000006109475
+mean_AoI_last100                   = 4.82701171875
+mean_power_dBm                     = 7.66396
+mean_remaining_V2V_demand          = 2001.6702716503905
+mean_V2I_rate                      = 309.2266483236349
+mean_V2V_rate                      = 747.3012840272618
+lambda_last100_per_platoon         = [0.0, 0.0, 0.0, 0.0, 0.0]
+v2i_mode_frac_half1                = 0.547
+v2i_mode_frac_half2                = 0.637

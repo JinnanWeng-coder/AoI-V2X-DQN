@@ -55,8 +55,13 @@ parser.add_argument('--out_subdir', type=str, default='',
 parser.add_argument('--mode', choices=['soft', 'hard'], default='soft')
 parser.add_argument('--eps', type=float, default=0.10, help='[RQ1-CMDP] target violation probability epsilon')
 parser.add_argument('--eta_lam', type=float, default=1.0, help='[RQ1-CMDP] integral dual step size')
-parser.add_argument('--lam_max', type=float, default=20.0, help='[RQ1-CMDP] multiplier clip')
+parser.add_argument('--lam_max', type=float, default=5.0,
+                    help='[RQ1-CMDP] multiplier clip (5 default; RCPO is reward-scaled, keep small for argmax-critic)')
 parser.add_argument('--dual', choices=['integral', 'pid'], default='pid', help='[RQ1-CMDP] dual update rule')
+parser.add_argument('--cost_source', choices=['critic', 'raw'], default='raw',
+                    help='[RQ1-CMDP] hard signal: raw=RCPO (fold -lambda*c into task-2 reward, default) vs critic (Q^c in argmax)')
+parser.add_argument('--lam_warmup', type=int, default=150,
+                    help='[RQ1-CMDP] episodes before the dual starts (policy converges first; lambda=0 until then)')
 parser.add_argument('--kp', type=float, default=1.0, help='[RQ1-CMDP] PID proportional gain')
 parser.add_argument('--ki', type=float, default=1.0, help='[RQ1-CMDP] PID integral gain')
 parser.add_argument('--kd', type=float, default=0.5, help='[RQ1-CMDP] PID derivative gain')
@@ -136,7 +141,8 @@ def get_state(env, idx):
 
 n_input = len(get_state(env, 0))
 agents = [IndependentDQNAgent(args.lr, n_input, n_actions, args.gamma, args.fc1, args.fc2,
-                              args.batch_size, i, tau=args.target_tau, constraint_mode=args.mode)
+                              args.batch_size, i, tau=args.target_tau, constraint_mode=args.mode,
+                              cost_source=args.cost_source)
           for i in range(n_platoon)]
 memory = ReplayBuffer(args.buffer, n_input, n_platoon)
 
@@ -150,6 +156,9 @@ print('=== Independent-DQN run: seed=%d episodes=%d steps/ep=%d renew_every=%d n
       'n_input=%d n_actions=%d fc=%d/%d label=%s smoke=%s ==='
       % (SEED, n_episode, n_step_per_episode, args.renew_every, n_platoon, n_RB, n_input, n_actions,
          args.fc1, args.fc2, label, args.smoke))
+if args.mode == 'hard':
+    print('    [hard CMDP] cost_source=%s dual=%s lam_max=%.1f lam_warmup=%d eps=%.2f tau=%.1f'
+          % (args.cost_source, args.dual, args.lam_max, args.lam_warmup, args.eps, args.tau))
 
 # ---- logging arrays (mirror the CMDP repo so the same analysis scripts apply) ----
 AoI_evolution = np.zeros([n_platoon, n_episode_test, n_step_per_episode], dtype=np.float16)
@@ -246,7 +255,7 @@ for i_episode in range(n_episode):
     mode_v2i_total[:, i_episode] = 1.0 - rec_mode_step.mean(axis=1)   # fraction of steps in V2I(inter) mode
     # [RQ1-CMDP] two-timescale dual ascent (slow loop, once per episode): raise lambda_j when
     # platoon j's episodic violation exceeds eps, lower it otherwise. Soft mode leaves lambda=0.
-    if args.mode == 'hard':
+    if args.mode == 'hard' and i_episode >= args.lam_warmup:    # [RQ1-CMDP] warmup: policy converges first
         e_vec = viol_total[:, i_episode] - args.eps
         for j in range(n_platoon):
             e = float(e_vec[j])

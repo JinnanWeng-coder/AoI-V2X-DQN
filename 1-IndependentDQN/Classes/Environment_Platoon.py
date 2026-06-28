@@ -114,6 +114,9 @@ class Environ:
         self.vehNoiseFigure = 9
         self.sig2 = 10 ** (self.sig2_dB / 10)
         self.aoi_penalty_coef = 1.0 / 20   # [RQ1-CMDP] AoI reward-penalty weight; Main sets 0.0 in hard mode
+        self.aoi_pen_type = 'raw'          # [RQ1-CMDP #4] 'raw' = -AoI*coef; 'indicator' = -aoi_pen_w*1{AoI>tau}
+        self.aoi_pen_w = 0.0               # [RQ1-CMDP #4] fixed indicator-penalty weight
+        self.tau_aoi = 8.0                 # [RQ1-CMDP #4] AoI threshold for the indicator penalty
         self.gap = Gap
         self.v_length = 0
 
@@ -511,16 +514,23 @@ class Environ:
 
         for i in range(int(self.n_Veh / self.size_platoon)):
 
+            # [RQ1-CMDP #4] AoI penalty shape: raw = -AoI*coef (Main sets coef=0 in hard mode);
+            #   indicator = -aoi_pen_w*1{AoI>tau} (fixed-weight threshold penalty, no dual = the Qu-style arm).
+            if self.aoi_pen_type == 'indicator':
+                aoi_pen_i = self.aoi_pen_w * float(platoon_AoI[i] > self.tau_aoi)
+            else:
+                aoi_pen_i = platoon_AoI[i] * self.aoi_penalty_coef
+
             if action_temp[i, 1] == 0:
                 per_user_task1_reward[i] = (-4.95)*(Demand[i] / self.V2V_demand_size)
 
                 per_user_task2_reward[i] = (0.05)*self.Revenue_function(C_rate[i], self.V2I_min) \
-                                       - 0.5*math.log(action_temp[i, 2],5) - platoon_AoI[i] * self.aoi_penalty_coef
+                                       - 0.5*math.log(action_temp[i, 2],5) - aoi_pen_i
             else:
                 per_user_task1_reward[i] = (-4.95) * (Demand[i] / self.V2V_demand_size) - 0.5 * math.log(
                     action_temp[i, 2], 5)
 
-                per_user_task2_reward[i] = (0.05) * self.Revenue_function(C_rate[i], self.V2I_min) - platoon_AoI[i] * self.aoi_penalty_coef
+                per_user_task2_reward[i] = (0.05) * self.Revenue_function(C_rate[i], self.V2I_min) - aoi_pen_i
 
         global_reward = -np.mean((self.Interference_all + 60) / 60)
         return per_user_task1_reward, per_user_task2_reward, global_reward, platoon_AoI, C_rate, \

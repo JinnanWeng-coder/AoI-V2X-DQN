@@ -62,6 +62,13 @@ parser.add_argument('--cost_source', choices=['critic', 'raw'], default='raw',
                     help='[RQ1-CMDP] hard signal: raw=RCPO (fold -lambda*c into task-2 reward, default) vs critic (Q^c in argmax)')
 parser.add_argument('--lam_warmup', type=int, default=150,
                     help='[RQ1-CMDP] episodes before the dual starts (policy converges first; lambda=0 until then)')
+# [RQ1-CMDP #3] multiplier GRANULARITY ablation (necessity of per-platoon lambda).
+parser.add_argument('--lam_scope', choices=['per_platoon', 'global_mean', 'global_max'], default='per_platoon',
+                    help='[RQ1-CMDP #3] per-platoon lambda_j (ours) vs a single global lambda (mean- or worst-driven)')
+# [RQ1-CMDP #4] soft-penalty SHAPE ablation (fixed-weight threshold penalty vs the dual; the Qu-style arm).
+parser.add_argument('--aoi_pen_type', choices=['raw', 'indicator'], default='raw',
+                    help='[RQ1-CMDP #4] soft AoI penalty: raw=-AoI/20 vs indicator=-w*1{AoI>tau} (fixed weight, no dual)')
+parser.add_argument('--aoi_pen_w', type=float, default=5.0, help='[RQ1-CMDP #4] fixed indicator-penalty weight w')
 parser.add_argument('--kp', type=float, default=1.0, help='[RQ1-CMDP] PID proportional gain')
 parser.add_argument('--ki', type=float, default=1.0, help='[RQ1-CMDP] PID integral gain')
 parser.add_argument('--kd', type=float, default=0.5, help='[RQ1-CMDP] PID derivative gain')
@@ -115,6 +122,9 @@ env = ENV.Environ(down_lanes, up_lanes, left_lanes, right_lanes, width, height,
 env.new_random_game()
 # [RQ1-CMDP] AoI handling: soft keeps the -AoI/20 reward penalty; hard turns it OFF (AoI -> constraint).
 env.aoi_penalty_coef = (1.0 / 20) if args.mode == 'soft' else 0.0
+env.tau_aoi = args.tau                  # [RQ1-CMDP #4] threshold for the indicator penalty
+env.aoi_pen_type = args.aoi_pen_type    # [RQ1-CMDP #4] raw vs indicator (fixed-weight) penalty shape
+env.aoi_pen_w = args.aoi_pen_w          # [RQ1-CMDP #4] fixed indicator-penalty weight
 
 n_episode = args.episodes
 n_step_per_episode = int(env.time_slow / env.time_fast)   # = 100 (physics-locked: 100ms CAM frame / 1ms slot).
@@ -256,7 +266,13 @@ for i_episode in range(n_episode):
     # [RQ1-CMDP] two-timescale dual ascent (slow loop, once per episode): raise lambda_j when
     # platoon j's episodic violation exceeds eps, lower it otherwise. Soft mode leaves lambda=0.
     if args.mode == 'hard' and i_episode >= args.lam_warmup:    # [RQ1-CMDP] warmup: policy converges first
-        e_vec = viol_total[:, i_episode] - args.eps
+        viol_rate = viol_total[:, i_episode]
+        if args.lam_scope == 'per_platoon':                     # ours: each platoon drives its own lambda_j
+            e_vec = viol_rate - args.eps
+        elif args.lam_scope == 'global_mean':                   # [RQ1-CMDP #3] one global lambda (network-mean driven)
+            e_vec = np.full(n_platoon, float(np.mean(viol_rate)) - args.eps)
+        else:                                                   # global_max: one global lambda (worst-platoon driven)
+            e_vec = np.full(n_platoon, float(np.max(viol_rate)) - args.eps)
         for j in range(n_platoon):
             e = float(e_vec[j])
             if args.dual == 'integral':

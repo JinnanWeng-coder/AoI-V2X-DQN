@@ -14,14 +14,17 @@ class IndependentDQNAgent:
         is baked into Q2). lambda multiplies a 0/1 cost so it stays on the reward scale
         -> no value-scale domination, unlike the argmax-critic variant below.
     hard + cost_source='critic': separate cost head Q^c (Double-DQN Bellman on c);
-        greedy = argmax[Q1+Q2 - lambda_j*Q^c]. Combining raw Q-VALUES is value-scale
-        sensitive (Q^c >> the action-discriminating part of Q1+Q2), so keep lam_max small.
+        greedy = argmax over a SCALE-BALANCED Lagrangian. With --critic_norm std (default)
+        the reward sum (Q1+Q2) and the cost (Q^c) are STANDARDISED over the action set
+        before combining, so lambda is a dimensionless trade-off weight (recovers the
+        gradient-scale balance DDPG had for free; removes value-scale domination).
+        --critic_norm none = the raw-value combine argmax[Q1+Q2 - lambda*Q^c] (the failed v1).
     lambda_j is updated once per episode by the dual (Main.py). Extra nets are built ONLY
     when used, so the soft path is byte-identical to the validated baseline.
     """
 
     def __init__(self, lr, input_dims, n_actions, gamma, fc1_dims, fc2_dims,
-                 batch_size, agent_label, tau=0.005, constraint_mode='soft', cost_source='raw'):
+                 batch_size, agent_label, tau=0.005, constraint_mode='soft', cost_source='raw', critic_norm='std'):
         self.gamma = gamma
         self.batch_size = batch_size
         self.n_actions = n_actions
@@ -29,6 +32,7 @@ class IndependentDQNAgent:
         self.agent_label = agent_label
         self.constraint_mode = constraint_mode
         self.cost_source = cost_source
+        self.critic_norm = critic_norm                           # 'std' = scale-balanced argmax; 'none' = raw values
         self.hard = (constraint_mode == 'hard')
         self.use_cost_critic = (self.hard and cost_source == 'critic')
         self.lam = 0.0                                            # per-platoon Lagrange multiplier
@@ -45,9 +49,17 @@ class IndependentDQNAgent:
         self.update_target(tau=1.0)
 
     def _greedy_q(self, q1, q2, qc):
-        if self.use_cost_critic:
-            return q1 + q2 - self.lam * qc
-        return q1 + q2
+        if not self.use_cost_critic:
+            return q1 + q2
+        if self.critic_norm == 'std':
+            # [RQ1-CMDP] scale-balanced Lagrangian argmax: standardise the reward sum and the
+            # cost over the action set so lambda is a dimensionless trade-off weight (fixes the
+            # value-scale domination that broke the raw combine). Action-selection only (no grad).
+            r = q1 + q2
+            zr = (r - r.mean(dim=1, keepdim=True)) / (r.std(dim=1, keepdim=True) + 1e-6)
+            zc = (qc - qc.mean(dim=1, keepdim=True)) / (qc.std(dim=1, keepdim=True) + 1e-6)
+            return zr - self.lam * zc
+        return q1 + q2 - self.lam * qc      # 'none' = raw-value combine (value-scale sensitive; the failed v1)
 
     def choose_action(self, observation, epsilon):
         if np.random.random() < epsilon:

@@ -60,6 +60,8 @@ parser.add_argument('--lam_max', type=float, default=5.0,
 parser.add_argument('--dual', choices=['integral', 'pid'], default='pid', help='[RQ1-CMDP] dual update rule')
 parser.add_argument('--cost_source', choices=['critic', 'raw'], default='raw',
                     help='[RQ1-CMDP] hard signal: raw=RCPO (fold -lambda*c into task-2 reward, default) vs critic (Q^c in argmax)')
+parser.add_argument('--critic_norm', choices=['std', 'none'], default='std',
+                    help='[RQ1-CMDP] cost_source=critic argmax: std=scale-balanced (standardise reward & cost over actions) vs none=raw combine')
 parser.add_argument('--lam_warmup', type=int, default=150,
                     help='[RQ1-CMDP] episodes before the dual starts (policy converges first; lambda=0 until then)')
 # [RQ1-CMDP #3] multiplier GRANULARITY ablation (necessity of per-platoon lambda).
@@ -152,7 +154,7 @@ def get_state(env, idx):
 n_input = len(get_state(env, 0))
 agents = [IndependentDQNAgent(args.lr, n_input, n_actions, args.gamma, args.fc1, args.fc2,
                               args.batch_size, i, tau=args.target_tau, constraint_mode=args.mode,
-                              cost_source=args.cost_source)
+                              cost_source=args.cost_source, critic_norm=args.critic_norm)
           for i in range(n_platoon)]
 memory = ReplayBuffer(args.buffer, n_input, n_platoon)
 
@@ -167,8 +169,8 @@ print('=== Independent-DQN run: seed=%d episodes=%d steps/ep=%d renew_every=%d n
       % (SEED, n_episode, n_step_per_episode, args.renew_every, n_platoon, n_RB, n_input, n_actions,
          args.fc1, args.fc2, label, args.smoke))
 if args.mode == 'hard':
-    print('    [hard CMDP] cost_source=%s dual=%s lam_max=%.1f lam_warmup=%d eps=%.2f tau=%.1f'
-          % (args.cost_source, args.dual, args.lam_max, args.lam_warmup, args.eps, args.tau))
+    print('    [hard CMDP] cost_source=%s critic_norm=%s dual=%s lam_max=%.1f lam_warmup=%d eps=%.2f tau=%.1f'
+          % (args.cost_source, args.critic_norm, args.dual, args.lam_max, args.lam_warmup, args.eps, args.tau))
 
 # ---- logging arrays (mirror the CMDP repo so the same analysis scripts apply) ----
 AoI_evolution = np.zeros([n_platoon, n_episode_test, n_step_per_episode], dtype=np.float16)

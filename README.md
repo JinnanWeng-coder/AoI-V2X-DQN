@@ -49,7 +49,10 @@ On the discrete DQN, the per-platoon CMDP (RCPO; canonical cadence, seeds 2–7)
 **worst-platoon** violation from **0.32 (soft) → 0.13 (≈ ε=0.10)**, holds **every** platoon
 near ε, and lowers mean AoI (−14%), at **+5.6% transmit power** — matching the continuous
 DDPG result (0.126) at lower cost. A single **global** multiplier, or a **fixed-weight**
-AoI penalty, does not achieve this. Full numbers and the findings ledger: [`CLAUDE.md`](CLAUDE.md).
+AoI penalty, does not achieve this: global λ keeps the network mean near ε but leaves the
+worst platoon ≈0.18, while the best tested fixed indicator penalty (`w=2`) is worse
+(worst 0.226; max seed 0.444) and larger weights burn power without protecting the tail.
+Full numbers and the findings ledger: [`CLAUDE.md`](CLAUDE.md).
 
 ## Repository layout
 ```

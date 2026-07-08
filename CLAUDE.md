@@ -7,10 +7,12 @@
 > (ii) show the per-platoon **CMDP** result is **learner-agnostic** (holds on discrete
 > control, not only on continuous DDPG).
 >
-> **Status (2026-06-29):** the core result has LANDED. On the discrete DQN the per-platoon
+> **Status (2026-07-08):** the core result has LANDED. On the discrete DQN the per-platoon
 > CMDP (RCPO) protects the worst convoy — worst-platoon violation **0.319 → 0.133 (−58%)**,
 > every platoon pulled to ε, at **+5.6% transmit power** — matching DDPG (0.126) at lower
-> cost. P2 necessity ablations (global-λ #3, fixed-weight #4) are **in flight**.
+> cost. P2 necessity ablations now support the mechanism claim: a single global λ controls
+> the network mean but not the worst platoon, and no tested fixed-weight indicator penalty
+> matches the adaptive per-platoon dual.
 >
 > Active code: `1-IndependentDQN/`. Remote machine: `D:\Jinnan\CMDP\AoI-V2X-DQN`
 > (`REMOTE_RUNBOOK.md`). Code overview for outsiders: `README.md`. **No Git-LFS** —
@@ -54,10 +56,15 @@ target_tau 0.005, ε 1.0→0.05 over 50% of steps. CMDP (hard): τ=**8**, ε=**0
    meanAoI 5.19→4.45, **+5.6% power**; **every** platoon pulled to ε (hard 0.08–0.17, **0%
    >2ε** vs soft's 33%); λ **selective** (large only on the bottleneck). Matches DDPG (0.126)
    at lower power ⇒ **per-platoon CMDP is learner-agnostic.**
-6. **(in flight)** P2 necessity ablations — `Ablation3_GlobalLambda/` (per-platoon λ_j vs a
-   single global λ, `--lam_scope`), `Ablation4_FixedWeight/` (fixed-weight `−w·1{AoI>τ}`
-   penalty, no dual, `--aoi_pen_type indicator` — the Qu-style arm). Not yet analyzed.
-   Expected: global λ fails to protect the worst convoy; no single w matches the dual.
+6. **P2 necessity ablations support the CMDP mechanism.** `Ablation3_GlobalLambda/`
+   (re5, seeds 2–7) shows a single global λ is the wrong granularity: `global_mean` keeps
+   the network mean near ε (net **0.102**) but leaves the worst platoon high (worst
+   **0.180**, all 6 seeds > ε); `global_max` spends much more power (12.8 dBm, λ often at
+   cap) yet still has worst **0.185**. `Ablation4_FixedWeight/` shows fixed indicator
+   penalties are not a substitute: the best tested weight (`w=2`) has worst **0.226**
+   (max **0.444**), while `w=5/10/20` worsens AoI and power (worst ≈0.41–0.46, power
+   ≈16 dBm). ⇒ The result is not just "tune a penalty"; per-platoon adaptive duals are
+   necessary for worst-convoy protection.
 
 ## 3. Code structure (`1-IndependentDQN/`)
 - `Main.py` — training loop, argparse, per-run `.mat` logging, per-episode dual update.
@@ -76,7 +83,7 @@ target_tau 0.005, ε 1.0→0.05 over 50% of steps. CMDP (hard): τ=**8**, ε=**0
 ## 4. `model/` studies
 `Scan_Cadence/` (cadence sweep, soft) · `Step5_CMDP/` (FAILED critic-argmax, kept for the
 record) · `Step5_RCPO/` (the working hard result) · `Mem_Sweep/` (eviction invariance) ·
-`Ablation3_GlobalLambda/` + `Ablation4_FixedWeight/` (P2, in flight). Run-dir = `model/
+`Ablation3_GlobalLambda/` + `Ablation4_FixedWeight/` (P2 necessity ablations, landed). Run-dir = `model/
 <out_subdir>/dqn_<mode>_seed<S>_<out_tag>/`. `.mat` tracked; `*.png` gitignored (regenerate
 with `plot_results.py`).
 
@@ -87,7 +94,7 @@ with `plot_results.py`).
 `(AoI_evolution > 8).mean(axis=(1,2))` per platoon (worst = max, net = mean).
 
 ## 6. Next
-Analyze P2 (global-λ should fail to protect the worst; no fixed w should match the dual) →
-cadence robustness of hard-RCPO on re1/re20 → ε-sweep {0.05,0.10,0.20} and `--cost_source
+Optional fixed-weight fine sweep around `w≈2` if a reviewer asks for a denser penalty grid
+→ cadence robustness of hard-RCPO on re1/re20 → ε-sweep {0.05,0.10,0.20} and `--cost_source`
 critic` with the lam_max=5/warmup fix (cost-critic necessity, A1) → scale (`--n_RB`/`--n_veh`,
 env caps at 8 platoons).

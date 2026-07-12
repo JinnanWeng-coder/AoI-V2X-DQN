@@ -13,7 +13,8 @@ set -Eeuo pipefail
 IFS=$'\n\t'
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
-REPO_ROOT="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel)"
+DQN_DIR="$(cd -- "$SCRIPT_DIR/.." && pwd -P)"
+REPO_ROOT="$(git -C "$DQN_DIR" rev-parse --show-toplevel)"
 SOURCE_COMMIT="$(git -C "$REPO_ROOT" rev-parse HEAD)"
 
 PY_BIN="${PY:-/d/Jinnan/CMDP/AoI-V2X-CMDP/.venv/Scripts/python.exe}"
@@ -25,15 +26,15 @@ DRY_RUN=0
 
 SEEDS=(2 3 4 5 6 7)
 STUDY_NAME="S04_cadence_validation"
-OUT_ROOT="$SCRIPT_DIR/experiments/runs/rcpo_per_platoon"
-STUDY_DIR="$SCRIPT_DIR/experiments/studies/$STUDY_NAME"
+OUT_ROOT="$DQN_DIR/experiments/runs/rcpo_per_platoon"
+STUDY_DIR="$DQN_DIR/experiments/studies/$STUDY_NAME"
 LOG_ROOT="$REPO_ROOT/logs/$STUDY_NAME"
 PIDS_FILE="$LOG_ROOT/pids.tsv"
 REQUIRED_ANCESTOR="d7c7718"
 
 usage() {
     cat <<'EOF'
-Usage: bash run_rcpo_re20.sh [options]
+Usage: bash scripts/run_rcpo_re20.sh [options]
 
 Options:
   --python PATH          Python executable (default: remote CMDP venv)
@@ -119,7 +120,7 @@ EOF
 
 if ((DRY_RUN == 1)); then
     log "dry run; source commit=$SOURCE_COMMIT"
-    log "script_dir=$SCRIPT_DIR"
+    log "dqn_dir=$DQN_DIR"
     log "python=$PY_BIN max_parallel=$MAX_PARALLEL monitor_seconds=$MONITOR_SECONDS"
     log "seeds=$(IFS=,; printf '%s' "${SEEDS[*]}") output=experiments/runs/rcpo_per_platoon"
     print_locked_command
@@ -168,9 +169,9 @@ on_exit() {
 trap on_signal INT TERM HUP
 trap on_exit EXIT
 
-cd "$SCRIPT_DIR"
+cd "$DQN_DIR"
 
-[[ -f Main.py ]] || die "Main.py is missing from $SCRIPT_DIR"
+[[ -f Main.py ]] || die "Main.py is missing from $DQN_DIR"
 [[ -f analysis/plot_run.py ]] || die "analysis/plot_run.py is missing"
 git -C "$REPO_ROOT" diff --quiet -- || die "tracked unstaged changes exist; refusing a formal run"
 git -C "$REPO_ROOT" diff --cached --quiet -- || die "staged changes exist; refusing a formal run"

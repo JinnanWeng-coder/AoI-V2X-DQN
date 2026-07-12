@@ -1,0 +1,11 @@
+legacy_path	canonical_target	comparison	verdict
+model/dqn_soft_seed2_re1	experiments/runs/soft_raw_aoi/dqn_soft_raw_re01_buf050k_seed02	10 shared MAT arrays exactly equal; legacy copy lacks mode_v2i.mat	legacy_duplicate
+model/dqn_soft_seed2_re1_modelog	experiments/runs/soft_raw_aoi/dqn_soft_raw_re01_buf050k_seed02	11 MAT arrays exactly equal	legacy_duplicate
+model/dqn_soft_seed2_re20	experiments/runs/soft_raw_aoi/dqn_soft_raw_re20_buf050k_seed02	10 shared MAT arrays exactly equal; legacy copy lacks mode_v2i.mat	legacy_duplicate
+model/Mem_Sweep/dqn_soft_seed2_re5_mem50000	experiments/runs/soft_raw_aoi/dqn_soft_raw_re05_buf050k_seed02	11 shared MAT arrays exactly equal; extra lambda.mat is all zero	legacy_duplicate
+model/Mem_Sweep/dqn_soft_seed3_re5_mem50000	experiments/runs/soft_raw_aoi/dqn_soft_raw_re05_buf050k_seed03	11 shared MAT arrays exactly equal; extra lambda.mat is all zero	legacy_duplicate
+model/Mem_Sweep/dqn_soft_seed4_re5_mem50000	experiments/runs/soft_raw_aoi/dqn_soft_raw_re05_buf050k_seed04	11 shared MAT arrays exactly equal; extra lambda.mat is all zero	legacy_duplicate
+model/Mem_Sweep/dqn_soft_seed5_re5_mem50000	experiments/runs/soft_raw_aoi/dqn_soft_raw_re05_buf050k_seed05	11 shared MAT arrays exactly equal; extra lambda.mat is all zero	legacy_duplicate
+model/Mem_Sweep/dqn_soft_seed6_re5_mem50000	experiments/runs/soft_raw_aoi/dqn_soft_raw_re05_buf050k_seed06	11 shared MAT arrays exactly equal; extra lambda.mat is all zero	legacy_duplicate
+
+

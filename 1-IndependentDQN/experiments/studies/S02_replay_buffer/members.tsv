@@ -1,0 +1,18 @@
+arm_id	role	seed	run_path
+B025k	soft_raw_aoi_buffer_025k	2	../../runs/soft_raw_aoi/dqn_soft_raw_re05_buf025k_seed02
+B025k	soft_raw_aoi_buffer_025k	3	../../runs/soft_raw_aoi/dqn_soft_raw_re05_buf025k_seed03
+B025k	soft_raw_aoi_buffer_025k	4	../../runs/soft_raw_aoi/dqn_soft_raw_re05_buf025k_seed04
+B025k	soft_raw_aoi_buffer_025k	5	../../runs/soft_raw_aoi/dqn_soft_raw_re05_buf025k_seed05
+B025k	soft_raw_aoi_buffer_025k	6	../../runs/soft_raw_aoi/dqn_soft_raw_re05_buf025k_seed06
+B050k	soft_raw_aoi_buffer_050k	2	../../runs/soft_raw_aoi/dqn_soft_raw_re05_buf050k_seed02
+B050k	soft_raw_aoi_buffer_050k	3	../../runs/soft_raw_aoi/dqn_soft_raw_re05_buf050k_seed03
+B050k	soft_raw_aoi_buffer_050k	4	../../runs/soft_raw_aoi/dqn_soft_raw_re05_buf050k_seed04
+B050k	soft_raw_aoi_buffer_050k	5	../../runs/soft_raw_aoi/dqn_soft_raw_re05_buf050k_seed05
+B050k	soft_raw_aoi_buffer_050k	6	../../runs/soft_raw_aoi/dqn_soft_raw_re05_buf050k_seed06
+B100k	soft_raw_aoi_buffer_100k	2	../../runs/soft_raw_aoi/dqn_soft_raw_re05_buf100k_seed02
+B100k	soft_raw_aoi_buffer_100k	3	../../runs/soft_raw_aoi/dqn_soft_raw_re05_buf100k_seed03
+B100k	soft_raw_aoi_buffer_100k	4	../../runs/soft_raw_aoi/dqn_soft_raw_re05_buf100k_seed04
+B100k	soft_raw_aoi_buffer_100k	5	../../runs/soft_raw_aoi/dqn_soft_raw_re05_buf100k_seed05
+B100k	soft_raw_aoi_buffer_100k	6	../../runs/soft_raw_aoi/dqn_soft_raw_re05_buf100k_seed06
+
+

@@ -1,0 +1,27 @@
+arm_id	role	seed	run_path
+A00	soft_raw_re05	2	../../runs/soft_raw_aoi/dqn_soft_raw_re05_buf050k_seed02
+A00	soft_raw_re05	3	../../runs/soft_raw_aoi/dqn_soft_raw_re05_buf050k_seed03
+A00	soft_raw_re05	4	../../runs/soft_raw_aoi/dqn_soft_raw_re05_buf050k_seed04
+A00	soft_raw_re05	5	../../runs/soft_raw_aoi/dqn_soft_raw_re05_buf050k_seed05
+A00	soft_raw_re05	6	../../runs/soft_raw_aoi/dqn_soft_raw_re05_buf050k_seed06
+A00	soft_raw_re05	7	../../runs/soft_raw_aoi/dqn_soft_raw_re05_buf050k_seed07
+A10	ours_per_platoon_re05	2	../../runs/rcpo_per_platoon/dqn_rcpo_raw_per_pid_lmax05_re05_seed02
+A10	ours_per_platoon_re05	3	../../runs/rcpo_per_platoon/dqn_rcpo_raw_per_pid_lmax05_re05_seed03
+A10	ours_per_platoon_re05	4	../../runs/rcpo_per_platoon/dqn_rcpo_raw_per_pid_lmax05_re05_seed04
+A10	ours_per_platoon_re05	5	../../runs/rcpo_per_platoon/dqn_rcpo_raw_per_pid_lmax05_re05_seed05
+A10	ours_per_platoon_re05	6	../../runs/rcpo_per_platoon/dqn_rcpo_raw_per_pid_lmax05_re05_seed06
+A10	ours_per_platoon_re05	7	../../runs/rcpo_per_platoon/dqn_rcpo_raw_per_pid_lmax05_re05_seed07
+A20	soft_raw_re20	2	../../runs/soft_raw_aoi/dqn_soft_raw_re20_buf050k_seed02
+A20	soft_raw_re20	3	../../runs/soft_raw_aoi/dqn_soft_raw_re20_buf050k_seed03
+A20	soft_raw_re20	4	../../runs/soft_raw_aoi/dqn_soft_raw_re20_buf050k_seed04
+A20	soft_raw_re20	5	../../runs/soft_raw_aoi/dqn_soft_raw_re20_buf050k_seed05
+A20	soft_raw_re20	6	../../runs/soft_raw_aoi/dqn_soft_raw_re20_buf050k_seed06
+A20	soft_raw_re20	7	../../runs/soft_raw_aoi/dqn_soft_raw_re20_buf050k_seed07
+A30	ours_per_platoon_re20	2	../../runs/rcpo_per_platoon/dqn_rcpo_raw_per_pid_lmax05_re20_seed02
+A30	ours_per_platoon_re20	3	../../runs/rcpo_per_platoon/dqn_rcpo_raw_per_pid_lmax05_re20_seed03
+A30	ours_per_platoon_re20	4	../../runs/rcpo_per_platoon/dqn_rcpo_raw_per_pid_lmax05_re20_seed04
+A30	ours_per_platoon_re20	5	../../runs/rcpo_per_platoon/dqn_rcpo_raw_per_pid_lmax05_re20_seed05
+A30	ours_per_platoon_re20	6	../../runs/rcpo_per_platoon/dqn_rcpo_raw_per_pid_lmax05_re20_seed06
+A30	ours_per_platoon_re20	7	../../runs/rcpo_per_platoon/dqn_rcpo_raw_per_pid_lmax05_re20_seed07
+
+

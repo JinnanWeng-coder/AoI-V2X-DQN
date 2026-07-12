@@ -24,8 +24,9 @@ SMOKE_ONLY=0
 DRY_RUN=0
 
 SEEDS=(2 3 4 5 6 7)
-STUDY_NAME="Step5_RCPO_re20"
-OUT_ROOT="$SCRIPT_DIR/model/$STUDY_NAME"
+STUDY_NAME="S04_cadence_validation"
+OUT_ROOT="$SCRIPT_DIR/experiments/runs/rcpo_per_platoon"
+STUDY_DIR="$SCRIPT_DIR/experiments/studies/$STUDY_NAME"
 LOG_ROOT="$REPO_ROOT/logs/$STUDY_NAME"
 PIDS_FILE="$LOG_ROOT/pids.tsv"
 REQUIRED_ANCESTOR="d7c7718"
@@ -111,7 +112,8 @@ PYTHONUNBUFFERED=1 DQN_CKPT_SUBDIR=tmp/dqn_hard_s<SEED>_re20 \\
   "$PY_BIN" Main.py --episodes 600 --seed <SEED> --renew_every 20 \\
   --mode hard --cost_source raw --dual pid --tau 8 --eps 0.10 \\
   --lam_max 5 --lam_warmup 150 --lam_scope per_platoon \\
-  --kp 1.0 --ki 1.0 --kd 0.5 --out_tag re20 --out_subdir $STUDY_NAME
+  --kp 1.0 --ki 1.0 --kd 0.5 \\
+  --out_subdir rcpo_per_platoon --run_name dqn_rcpo_raw_per_pid_lmax05_re20_seed<SEED>
 EOF
 }
 
@@ -119,7 +121,7 @@ if ((DRY_RUN == 1)); then
     log "dry run; source commit=$SOURCE_COMMIT"
     log "script_dir=$SCRIPT_DIR"
     log "python=$PY_BIN max_parallel=$MAX_PARALLEL monitor_seconds=$MONITOR_SECONDS"
-    log "seeds=$(IFS=,; printf '%s' "${SEEDS[*]}") output=model/$STUDY_NAME"
+    log "seeds=$(IFS=,; printf '%s' "${SEEDS[*]}") output=experiments/runs/rcpo_per_platoon"
     print_locked_command
     exit 0
 fi
@@ -169,7 +171,7 @@ trap on_exit EXIT
 cd "$SCRIPT_DIR"
 
 [[ -f Main.py ]] || die "Main.py is missing from $SCRIPT_DIR"
-[[ -f model/plot_results.py ]] || die "model/plot_results.py is missing"
+[[ -f analysis/plot_run.py ]] || die "analysis/plot_run.py is missing"
 git -C "$REPO_ROOT" diff --quiet -- || die "tracked unstaged changes exist; refusing a formal run"
 git -C "$REPO_ROOT" diff --cached --quiet -- || die "staged changes exist; refusing a formal run"
 git -C "$REPO_ROOT" merge-base --is-ancestor "$REQUIRED_ANCESTOR" HEAD \
@@ -261,7 +263,7 @@ PY
 
 missing_seeds=()
 for seed in "${SEEDS[@]}"; do
-    run_dir="$OUT_ROOT/dqn_hard_seed${seed}_re20"
+    run_dir="$OUT_ROOT/dqn_rcpo_raw_per_pid_lmax05_re20_seed$(printf '%02d' "$seed")"
     if [[ -d "$run_dir" ]]; then
         if audit_message="$(validate_run "$run_dir" 2>&1)"; then
             log "reuse seed=$seed; $audit_message"
@@ -275,11 +277,12 @@ for seed in "${SEEDS[@]}"; do
 done
 
 run_smoke() {
-    local stamp smoke_subdir smoke_log expected_label
+    local stamp smoke_root smoke_log expected_label run_name
     stamp="$(date '+%Y%m%d_%H%M%S')_$$"
-    smoke_subdir="../runs/Smoke_RCPO_re20/$stamp"
+    smoke_root="scratch/smoke/Smoke_RCPO_re20/$stamp"
+    run_name="dqn_rcpo_raw_per_pid_lmax05_re20_smoke_seed02"
     smoke_log="$LOG_ROOT/smoke_${stamp}.out"
-    expected_label="$smoke_subdir/dqn_hard_seed2_re20_smoke"
+    expected_label="$smoke_root/$run_name"
 
     log "starting smoke test; log=$smoke_log"
     PYTHONUNBUFFERED=1 DQN_CKPT_SUBDIR="tmp/codex_smoke_rcpo_re20_$stamp" \
@@ -296,11 +299,11 @@ run_smoke() {
         --lam_warmup 150 \
         --lam_scope per_platoon \
         --kp 1.0 --ki 1.0 --kd 0.5 \
-        --out_tag re20_smoke \
-        --out_subdir "$smoke_subdir" \
+        --output_root "$smoke_root" \
+        --run_name "$run_name" \
         >"$smoke_log" 2>&1
 
-    if ! grep -Fq "done. label=$expected_label" "$smoke_log"; then
+    if ! grep -Fq "done. run_dir=$expected_label" "$smoke_log"; then
         tail -n 30 "$smoke_log" >&2 || true
         die "smoke test did not reach its completion marker"
     fi
@@ -326,6 +329,7 @@ launch_seed() {
     local seed="$1"
     local log_file="$LOG_ROOT/hard_s${seed}.out"
     local checkpoint="tmp/dqn_hard_s${seed}_re20"
+    local run_name="dqn_rcpo_raw_per_pid_lmax05_re20_seed$(printf '%02d' "$seed")"
 
     if [[ -e "$log_file" ]]; then
         mv -- "$log_file" "$log_file.previous_$(date '+%Y%m%d_%H%M%S')"
@@ -348,8 +352,8 @@ launch_seed() {
             --lam_warmup 150 \
             --lam_scope per_platoon \
             --kp 1.0 --ki 1.0 --kd 0.5 \
-            --out_tag re20 \
-            --out_subdir "$STUDY_NAME"
+            --out_subdir rcpo_per_platoon \
+            --run_name "$run_name"
     ) >"$log_file" 2>&1 &
 
     LAST_PID=$!
@@ -401,9 +405,9 @@ run_wave() {
             fi
             remove_active_pid "$pid"
             wave_done[$i]=1
-            expected_label="$STUDY_NAME/dqn_hard_seed${seed}_re20"
+            expected_label="experiments/runs/rcpo_per_platoon/dqn_rcpo_raw_per_pid_lmax05_re20_seed$(printf '%02d' "$seed")"
 
-            if ((rc != 0)) || ! grep -Fq "done. label=$expected_label" "$log_file"; then
+            if ((rc != 0)) || ! grep -Fq "done. run_dir=$expected_label" "$log_file"; then
                 log "seed=$seed failed rc=$rc; last log lines follow"
                 tail -n 25 "$log_file" >&2 || true
                 status_parts+=("s${seed}=FAILED")
@@ -440,7 +444,7 @@ fi
 
 log "auditing all formal results"
 for seed in "${SEEDS[@]}"; do
-    validate_run "$OUT_ROOT/dqn_hard_seed${seed}_re20"
+    validate_run "$OUT_ROOT/dqn_rcpo_raw_per_pid_lmax05_re20_seed$(printf '%02d' "$seed")"
 done
 
 if ! "$PY_BIN" -c "import matplotlib" >/dev/null 2>&1; then
@@ -449,18 +453,16 @@ if ! "$PY_BIN" -c "import matplotlib" >/dev/null 2>&1; then
 fi
 
 for seed in "${SEEDS[@]}"; do
-    log "generating metrics/plots for seed=$seed"
-    "$PY_BIN" model/plot_results.py "$OUT_ROOT/dqn_hard_seed${seed}_re20"
-    [[ -s "$OUT_ROOT/dqn_hard_seed${seed}_re20/metrics.txt" ]] \
-        || die "metrics.txt was not generated for seed=$seed"
-    for metric_key in canonical.worst_platoon canonical.net_mean mean_AoI_last100 mean_power_dBm lambda_last100_per_platoon; do
-        grep -Fq "$metric_key" "$OUT_ROOT/dqn_hard_seed${seed}_re20/metrics.txt" \
-            || die "metrics.txt for seed=$seed is missing $metric_key"
-    done
+    log "generating plots for seed=$seed"
+    "$PY_BIN" analysis/plot_run.py "$OUT_ROOT/dqn_rcpo_raw_per_pid_lmax05_re20_seed$(printf '%02d' "$seed")"
 done
 
-log "writing linear-power summary and run manifest"
-"$PY_BIN" - "$OUT_ROOT" "$SOURCE_COMMIT" <<'PY'
+log "writing linear-power summary and run manifest when they do not already exist"
+mkdir -p "$STUDY_DIR"
+summary_path="$STUDY_DIR/summary.tsv"
+manifest_path="$STUDY_DIR/rcpo_re20_run_manifest.txt"
+if [[ ! -e "$summary_path" && ! -e "$manifest_path" ]]; then
+"$PY_BIN" - "$OUT_ROOT" "$SOURCE_COMMIT" "$STUDY_DIR" <<'PY'
 import datetime as dt
 import sys
 from pathlib import Path
@@ -471,9 +473,10 @@ import torch
 
 root = Path(sys.argv[1])
 source_commit = sys.argv[2]
+study_dir = Path(sys.argv[3])
 rows = []
 for seed in range(2, 8):
-    run = root / f"dqn_hard_seed{seed}_re20"
+    run = root / f"dqn_rcpo_raw_per_pid_lmax05_re20_seed{seed:02d}"
     ev = np.asarray(scipy.io.loadmat(run / "AoI_evolution.mat")["AoI_evolution"], dtype=np.float64)
     aoi = np.asarray(scipy.io.loadmat(run / "AoI.mat")["AoI"], dtype=np.float64)
     power_dbm = np.asarray(scipy.io.loadmat(run / "power.mat")["power"], dtype=np.float64)
@@ -499,10 +502,10 @@ for row in rows:
         f"{row[0]}\t{row[1]:.6f}\t{row[2]:.6f}\t"
         f"{row[3]:.6f}\t{row[4]:.6f}\t{row[5]:.6f}"
     )
-(root / "summary.tsv").write_text("\n".join(lines) + "\n", encoding="utf-8")
+(study_dir / "summary.tsv").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 manifest = [
-    "study=Step5_RCPO_re20",
+    "study=S04_cadence_validation",
     f"created_at={dt.datetime.now().astimezone().isoformat()}",
     f"source_commit={source_commit}",
     "episodes=600",
@@ -525,13 +528,18 @@ manifest = [
     f"gpu={torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'NONE'}",
     "power_note=mean_power_mW is mean(10**(power_dBm/10)); do not percentage-average dBm",
 ]
-(root / "run_manifest.txt").write_text("\n".join(manifest) + "\n", encoding="utf-8")
+(study_dir / "rcpo_re20_run_manifest.txt").write_text("\n".join(manifest) + "\n", encoding="utf-8")
 
 print("\n".join(lines))
 PY
+elif [[ -e "$summary_path" && -e "$manifest_path" ]]; then
+    log "summary and manifest already exist; preserving them without overwrite"
+else
+    die "partial study metadata: expected both summary.tsv and rcpo_re20_run_manifest.txt; summary=$summary_path manifest=$manifest_path"
+fi
 
 log "formal experiment complete"
 log "results=$OUT_ROOT"
-log "summary=$OUT_ROOT/summary.tsv"
+log "summary=$STUDY_DIR/summary.tsv"
 log "logs=$LOG_ROOT"
-log "next: stage only 1-IndependentDQN/model/$STUDY_NAME, verify, and commit locally; never push from the GPU host"
+log "next: stage only experiments/runs/rcpo_per_platoon and experiments/studies/$STUDY_NAME; never push from the GPU host"

@@ -21,8 +21,8 @@ from agent import IndependentDQNAgent
 # step-4 (smaller net). Steps 3 (scale) and 5 (per-platoon Lagrangian on the
 # SAME argmax) build on top of this. See README.md.
 # Example:
-#   python Main.py --episodes 600 --seed 2 --renew_every 20 --out_tag re20   # validate vs DDPG-soft
-#   python Main.py --episodes 600 --seed 2 --renew_every 1  --out_tag re1    # step 2a
+#   python Main.py --episodes 600 --seed 2 --renew_every 20 --out_subdir soft_raw_aoi --run_name dqn_soft_raw_re20_buf050k_seed02
+#   python Main.py --episodes 600 --seed 2 --renew_every 1  --out_subdir soft_raw_aoi --run_name dqn_soft_raw_re01_buf050k_seed02
 #   python Main.py --smoke                                                    # wiring test (seconds)
 # ===================================================================== #
 parser = argparse.ArgumentParser()
@@ -48,7 +48,11 @@ parser.add_argument('--eps_decay_frac', type=float, default=0.5,
                     help='fraction of total env steps over which epsilon decays linearly to eps_end')
 parser.add_argument('--out_tag', type=str, default='')
 parser.add_argument('--out_subdir', type=str, default='',
-                    help='optional subfolder under model/ for all outputs (e.g. Scan_Cadence)')
+                    help='legacy-compatible optional subfolder under --output_root')
+parser.add_argument('--run_name', type=str, default='',
+                    help='canonical output-directory name; overrides the legacy generated label')
+parser.add_argument('--output_root', type=str, default='experiments/runs',
+                    help='relative output root (default: experiments/runs; scratch paths are allowed for smoke tests)')
 # [RQ1-CMDP] step-5: per-platoon Lagrangian constraint. soft = AoI as -AoI/20 reward penalty
 # (validated baseline); hard = AoI as a per-platoon CMDP constraint P(AoI>tau)<=eps via a cost
 # Q-head + per-platoon lambda_j, greedy = argmax_a [Q1 + Q2 - lambda_j * Q^c].
@@ -158,12 +162,21 @@ agents = [IndependentDQNAgent(args.lr, n_input, n_actions, args.gamma, args.fc1,
           for i in range(n_platoon)]
 memory = ReplayBuffer(args.buffer, n_input, n_platoon)
 
-label = 'dqn_' + args.mode + '_seed' + str(SEED)
-if args.out_tag:
-    label = label + '_' + args.out_tag
-if args.out_subdir:
-    label = args.out_subdir + '/' + label    # nest all outputs under model/<out_subdir>/
 current_dir = os.path.dirname(os.path.realpath(__file__))
+legacy_label = 'dqn_' + args.mode + '_seed' + str(SEED)
+if args.out_tag:
+    legacy_label = legacy_label + '_' + args.out_tag
+run_name = args.run_name or legacy_label
+if not run_name or os.path.basename(run_name) != run_name:
+    raise SystemExit('--run_name must be a single directory name, not a path')
+
+output_root = os.path.abspath(os.path.join(current_dir, args.output_root))
+outdir = os.path.abspath(os.path.join(output_root, args.out_subdir, run_name))
+if os.path.commonpath([current_dir, outdir]) != current_dir:
+    raise SystemExit('output path escapes the IndependentDQN directory')
+if os.path.exists(outdir):
+    raise SystemExit('refusing to overwrite existing output directory: %s' % outdir)
+label = os.path.relpath(outdir, current_dir).replace(os.sep, '/')
 print('=== Independent-DQN run: seed=%d episodes=%d steps/ep=%d renew_every=%d n_platoon=%d n_RB=%d '
       'n_input=%d n_actions=%d fc=%d/%d label=%s smoke=%s ==='
       % (SEED, n_episode, n_step_per_episode, args.renew_every, n_platoon, n_RB, n_input, n_actions,
@@ -293,8 +306,7 @@ for i_episode in range(n_episode):
             ag.save_models()
 
 print('Training done. Saving .mat + checkpoints...')
-outdir = os.path.join(current_dir, 'model', label)
-os.makedirs(outdir, exist_ok=True)
+os.makedirs(outdir)
 scipy.io.savemat(os.path.join(outdir, 'reward_t1.mat'), {'reward_t1': rec_r1})
 scipy.io.savemat(os.path.join(outdir, 'reward_t2.mat'), {'reward_t2': rec_r2})
 scipy.io.savemat(os.path.join(outdir, 'AoI.mat'), {'AoI': AoI_total})
@@ -309,4 +321,4 @@ scipy.io.savemat(os.path.join(outdir, 'mode_v2i.mat'), {'mode_v2i': mode_v2i_tot
 scipy.io.savemat(os.path.join(outdir, 'lambda.mat'), {'lambda': lambda_total})   # [RQ1-CMDP] per-platoon multiplier
 for ag in agents:
     ag.save_models()
-print('done. label=%s  time=%.1fs' % (label, time.time() - start))
+print('done. run_dir=%s  time=%.1fs' % (label, time.time() - start))

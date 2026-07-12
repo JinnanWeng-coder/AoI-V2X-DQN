@@ -2,11 +2,12 @@ __pycache__/
 *.pyc
 .venv/
 venv/
-# run outputs (generated on the remote machine, committed separately like the CMDP repo)
-1-IndependentDQN/model/**/*.png
+# Generated run figures. MAT artifacts and metrics.txt remain visible to Git.
+1-IndependentDQN/experiments/**/*.png
 1-IndependentDQN/Classes/tmp/
 1-IndependentDQN/tmp/
-1-IndependentDQN/runs/
+1-IndependentDQN/checkpoints/
+1-IndependentDQN/scratch/
 logs/
 *.out
 .DS_Store

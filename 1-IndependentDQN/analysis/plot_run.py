@@ -19,8 +19,9 @@ Locked thresholds tau=8, eps=0.10 (kept here only as visual reference lines; the
 baseline does not enforce them).
 
 Usage:
-  python plot_results.py [run_dir]      # default: current directory
-Writes PNGs + metrics.txt INTO run_dir.
+  python analysis/plot_run.py <run_dir>
+Writes PNGs to <run_dir>/figures/.  Existing metrics.txt files are treated as
+run artifacts and are never overwritten by this tool.
 """
 import argparse
 import traceback
@@ -47,8 +48,10 @@ def load_mat_files(result_dir):
 
 
 def _save(result_dir, name):
+    figure_dir = result_dir / "figures"
+    figure_dir.mkdir(exist_ok=True)
     plt.tight_layout()
-    plt.savefig(result_dir / name, dpi=170, bbox_inches="tight")
+    plt.savefig(figure_dir / name, dpi=170, bbox_inches="tight")
     plt.close()
 
 
@@ -275,7 +278,7 @@ def run_one(result_dir):
         except Exception:
             print("  [warn] a plot failed in %s:\n%s" % (name, traceback.format_exc()))
 
-    lines = ["# DQN soft-baseline metrics for %s  (tau=%.0f, eps=%.2f reference)" % (name, TAU, EPS)]
+    lines = ["# DQN run metrics for %s  (tau=%.0f, eps=%.2f reference)" % (name, TAU, EPS)]
     for k in ("canonical.net_mean", "canonical.worst_platoon", "canonical.per_platoon",
               "viol_rate.net_mean_last100", "viol_rate.worst_platoon_last100",
               "mean_AoI_last100", "mean_power_dBm", "mean_remaining_V2V_demand",
@@ -283,7 +286,7 @@ def run_one(result_dir):
               "v2i_mode_frac_half1", "v2i_mode_frac_half2"):
         if k in m:
             lines.append("%-34s = %s" % (k, m[k]))
-    (rd / "metrics.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    print("\n".join(lines))
     print("[ok] %s  -> canonical worst=%.3f net-mean=%.3f  meanAoI=%.2f  power=%.2f dBm"
           % (name, m.get("canonical.worst_platoon", float("nan")),
              m.get("canonical.net_mean", float("nan")),

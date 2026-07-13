@@ -1,0 +1,15 @@
+study=S07_re20_constraint_design
+created_at=2026-07-13T10:22:25.911381+08:00
+source_commit=f3b2605026250b317ca72d8427d6aafb7bb8d92e
+episodes=600
+seeds=2,3,4,5,6,7
+renew_every=20
+methods=global_mean,global_max,fixed_w02,fixed_w05,fixed_w10,fixed_w20
+global_rcpo=cost_source:raw,dual:pid,tau:8,eps:0.10,lam_max:5,lam_warmup:150,kp:1,ki:1,kd:0.5
+fixed_indicator=mode:soft,tau:8,weights:2,5,10,20
+buffer=50000
+python=3.11.11 | packaged by Anaconda, Inc. | (main, Dec 11 2024, 16:34:19) [MSC v.1929 64 bit (AMD64)]
+torch=2.6.0+cu126
+cuda_available=True
+gpu=NVIDIA GeForce RTX 4090
+power_note=mean_power_mW is mean(10**(power_dBm/10)); do not percentage-average dBm
